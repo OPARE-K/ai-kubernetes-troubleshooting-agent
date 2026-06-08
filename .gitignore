@@ -1,0 +1,15 @@
+
+.env
+*.env
+!.env.example
+
+backend/.kube/
+.kube/
+
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.venv/
+
+*.log

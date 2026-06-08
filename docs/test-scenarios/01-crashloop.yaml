@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crashloop-demo
+  namespace: ai-agent-test
+  labels:
+    scenario: crashloop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crashloop-demo
+  template:
+    metadata:
+      labels:
+        app: crashloop-demo
+        scenario: crashloop
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "echo Missing env: $REQUIRED_API_KEY && exit 1"]
+          env:
+            - name: REQUIRED_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: missing-secret
+                  key: api-key

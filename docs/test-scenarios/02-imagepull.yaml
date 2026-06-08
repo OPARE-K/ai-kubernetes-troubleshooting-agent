@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imagepull-demo
+  namespace: ai-agent-test
+  labels:
+    scenario: imagepull
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imagepull-demo
+  template:
+    metadata:
+      labels:
+        app: imagepull-demo
+        scenario: imagepull
+    spec:
+      containers:
+        - name: web
+          image: nginx:does-not-exist-12345

@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      # Project-local kubeconfig dir — place config at backend/.kube/config (see docs/kubernetes-runtime.md)
+      - ./backend/.kube:/app/.kube:ro
+    environment:
+      - KUBECONFIG_PATH=/app/.kube/config
+      - INSFORGE_BASE_URL=${INSFORGE_BASE_URL:-https://35dwg74a.eu-central.insforge.app}
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        NEXT_PUBLIC_INSFORGE_BASE_URL: https://35dwg74a.eu-central.insforge.app
+        NEXT_PUBLIC_INSFORGE_ANON_KEY: ${NEXT_PUBLIC_INSFORGE_ANON_KEY:-}
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
