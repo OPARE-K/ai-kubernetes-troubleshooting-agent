@@ -2,43 +2,59 @@
 
 On-demand AI-powered Kubernetes troubleshooting.
 
-This fork extends the original tutorial with **remote edge-cluster investigations** — the UI and FastAPI backend run in Docker Desktop on Windows, while the Kubernetes cluster runs on a **Raspberry Pi kind** cluster reached through an **SSH tunnel**.
+## Project Origin
+
+This project was built while following an **AI Kubernetes Agent** tutorial that walks through a FastAPI backend, a Next.js frontend, cluster investigation, and LLM-based diagnosis. After completing the tutorial flow, the project was **extended for a real development environment** where the application runs on a Windows laptop and the Kubernetes cluster runs on a separate Raspberry Pi.
+
+The tutorial codebase remains the foundation. This repository adds remote-cluster access, more resilient diagnosis behavior, and operational documentation for that setup.
+
+## What makes this version different
+
+Compared with a typical local-only tutorial deployment, this version includes:
+
+- **Remote kind cluster on a Raspberry Pi** — the workload cluster runs on ARM edge hardware, not on the same machine as Docker Desktop
+- **Windows Docker Desktop backend** — the frontend and FastAPI backend run in containers on Windows
+- **SSH tunneling to the Raspberry Pi Kubernetes API** — the Pi kind API listens on localhost; Windows reaches it through a forwarded port
+- **Remote kubeconfig mounting** — `backend/.kube/config` is mounted into the backend container at `/app/.kube/config`
+- **`tls-server-name` configuration** — the kubeconfig sets `tls-server-name: localhost` so TLS matches the kind API certificate while connecting through the tunnel
+- **OpenRouter fallback diagnosis** — when the LLM is unavailable or rate-limited (for example HTTP 429), the app still returns an evidence-based diagnosis from cluster data
+- **Workload-priority ranking** — user application failures are prioritized over noisy `kube-system` findings such as high restart counts
+- **Failure-aware kubectl recommendations** — suggested commands depend on the failure type (for example, no `kubectl logs --previous` for `ImagePullBackOff` when the container never started)
+
+For step-by-step setup, see [docs/raspberry-pi-kind-setup.md](docs/raspberry-pi-kind-setup.md).
 
 ## Architecture
+
+```text
+Browser
+   │
+   ▼
+Frontend (Docker, :3000)
+   │
+   ▼
+FastAPI Backend (Docker, :8000)
+   │
+   ├─► Kubernetes investigation (kubectl)
+   │        │
+   │        ▼
+   │   host.docker.internal:<LOCAL_TUNNEL_PORT>
+   │        │
+   │        ▼
+   │   SSH tunnel (Windows host → Pi localhost:6443)
+   │        │
+   │        ▼
+   │   kind cluster on Raspberry Pi
+   │
+   └─► AI agent → OpenRouter LLM → diagnosis (+ fallback when LLM unavailable)
+```
+
+At a high level:
 
 ```text
 Frontend → FastAPI Backend → Kubernetes Investigation → AI Agent → LLM → Diagnosis
 ```
 
-### Remote Raspberry Pi Cluster
-
-```text
-┌────────────── Windows (Docker Desktop) ──────────────┐
-│  Browser → Frontend (:3000) → Backend (:8000)        │
-│       Backend kubectl → host.docker.internal:<port>  │
-│              │                                       │
-│       SSH tunnel (localhost:<port> → Pi:6443)        │
-└──────────────┼───────────────────────────────────────┘
-               ▼
-┌────────────── Raspberry Pi ──────────────────────────┐
-│  kind API (127.0.0.1:6443) → demo / test workloads   │
-└──────────────────────────────────────────────────────┘
-```
-
-**Setup guide:** [docs/raspberry-pi-kind-setup.md](docs/raspberry-pi-kind-setup.md)
-
-Place your Pi kubeconfig at `backend/.kube/config`, run an SSH tunnel from Windows, and set `server: https://host.docker.internal:<LOCAL_TUNNEL_PORT>` with `tls-server-name: localhost`. Do not hardcode Pi IP addresses in the repository.
-
-## Differences from the original tutorial
-
-| Area | Original tutorial | This fork |
-|---|---|---|
-| Cluster location | Local kind or Docker Desktop Kubernetes | **kind on Raspberry Pi** (edge / ARM) |
-| API access | Direct localhost kubeconfig | **SSH tunnel** from Windows to Pi localhost API |
-| kubeconfig | Local `server` URL | **`host.docker.internal` + `tls-server-name: localhost`** for container access |
-| AI availability | LLM required for every diagnosis | **OpenRouter fallback diagnosis** when the LLM is rate-limited or unavailable |
-| Finding priority | All problematic pods treated equally | **Workload-priority ranking** — user app failures before kube-system noise |
-| Suggested commands | Generic `kubectl describe` | **Failure-aware kubectl recommendations** (e.g. no `logs --previous` for ImagePullBackOff) |
+Place your Pi kubeconfig at `backend/.kube/config`, start the SSH tunnel from Windows, and set `server: https://host.docker.internal:<LOCAL_TUNNEL_PORT>` with `tls-server-name: localhost`. Use placeholders in your own notes rather than hardcoding Pi IP addresses in the repository.
 
 ## Quick Start
 
@@ -48,7 +64,7 @@ cp frontend/.env.example frontend/.env
 docker compose up --build
 ```
 
-For Pi cluster access, complete [docs/raspberry-pi-kind-setup.md](docs/raspberry-pi-kind-setup.md) before investigating.
+For Raspberry Pi cluster access, complete [docs/raspberry-pi-kind-setup.md](docs/raspberry-pi-kind-setup.md) before running an investigation.
 
 ## Endpoints
 
@@ -58,7 +74,7 @@ For Pi cluster access, complete [docs/raspberry-pi-kind-setup.md](docs/raspberry
 | http://localhost:8000/health | Backend health check |
 | POST http://localhost:8000/investigate | Investigate cluster + AI diagnosis |
 
-Set `OPENROUTER_API_KEY` in `backend/.env` (from InsForge dashboard) for AI reasoning. Investigations still return evidence-based fallback diagnoses when OpenRouter returns errors such as HTTP 429.
+Set `OPENROUTER_API_KEY` in `backend/.env` for AI reasoning. Investigations still return evidence-based fallback diagnoses when OpenRouter returns errors such as HTTP 429.
 
 ## Dashboard
 
